@@ -88,7 +88,10 @@
         let currentLocation = null;
         let totalDistance = 0;
         let lastLocation = null;
-        let trackingSessionId = Date.now(); // Generate a unique session ID for tracking
+        let trackingSessionId = localStorage.getItem("sessionId") || Date.now(); // Use session ID from localStorage or generate new
+
+        // Save sessionId to localStorage
+        localStorage.setItem("sessionId", trackingSessionId);
 
         // Initialize the map
         function initMap() {
