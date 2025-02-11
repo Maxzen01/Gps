@@ -7,25 +7,75 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <link rel="stylesheet" href="style.css" />
     <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+        h1 {
+            text-align: center;
+            padding: 20px;
+            background-color: #333;
+            color: white;
+        }
+        .container {
+            width: 80%;
+            margin: 20px auto;
+        }
         #map {
             height: 500px;
             width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .info {
+            margin: 10px 0;
+            background-color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        #location, #area-name, #timestamp, #distance {
+            font-size: 16px;
         }
     </style>
 </head>
 <body>
     <h1>Live GPS Tracker with OpenStreetMap</h1>
-    <button onclick="startTracking()">Start Live Tracking</button>
-    <button onclick="stopTracking()">Stop Tracking</button>
-    <button onclick="takePhoto()">Take Photo</button>
-    
-    <div id="location"></div>
-    <div id="area-name"></div>
-    <div id="map"></div>
-    <div>
-        <video id="video" width="300" height="200" autoplay></video>
-        <canvas id="canvas" style="display:none;"></canvas>
-        <img id="photo" width="300" height="200" />
+    <div class="container">
+        <button onclick="startTracking()">Start Live Tracking</button>
+        <button onclick="stopTracking()">Stop Tracking</button>
+        <button onclick="takePhoto()">Take Photo</button>
+        
+        <div class="info">
+            <div id="location"></div>
+            <div id="area-name"></div>
+            <div id="timestamp"></div>
+            <div id="distance"></div>
+            <p>Share the tracking URL: <span id="tracking-url"></span></p>
+        </div>
+
+        <div id="map"></div>
+
+        <div>
+            <video id="video" width="300" height="200" autoplay></video>
+            <canvas id="canvas" style="display:none;"></canvas>
+            <img id="photo" width="300" height="200" />
+        </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
@@ -36,6 +86,9 @@
         let polyline;
         let trackingInterval = null;
         let currentLocation = null;
+        let totalDistance = 0;
+        let lastLocation = null;
+        let trackingSessionId = Date.now(); // Generate a unique session ID for tracking
 
         // Initialize the map
         function initMap() {
@@ -70,22 +123,39 @@
 
                     // Begin live tracking
                     trackingInterval = setInterval(updateLocation, 5000);
+
+                    // Update the tracking URL initially
+                    updateTrackingUrl(latitude, longitude);
                 });
             } else {
                 alert("Geolocation is not supported by this browser.");
             }
         }
 
+        // Update location function to include the URL update
         function updateLocation() {
             navigator.geolocation.getCurrentPosition(position => {
                 currentLocation = position.coords;
                 let latLng = [currentLocation.latitude, currentLocation.longitude];
 
+                // Calculate distance
+                if (lastLocation) {
+                    let lat1 = lastLocation.latitude;
+                    let lon1 = lastLocation.longitude;
+                    let lat2 = currentLocation.latitude;
+                    let lon2 = currentLocation.longitude;
+                    totalDistance += getDistance(lat1, lon1, lat2, lon2);
+                }
+
+                lastLocation = currentLocation;
+
                 document.getElementById("location").innerText = `Latitude: ${currentLocation.latitude}, Longitude: ${currentLocation.longitude}`;
-                
+                document.getElementById("timestamp").innerText = `Timestamp: ${new Date().toLocaleString()}`;
+                document.getElementById("distance").innerText = `Total Distance: ${totalDistance.toFixed(2)} km`;
+
                 marker.setLatLng(latLng);
                 map.setView(latLng, 15);
-                
+
                 path.push(latLng);
 
                 // Draw a BLUE path
@@ -93,13 +163,46 @@
                     map.removeLayer(polyline);
                 }
                 polyline = L.polyline(path, { color: 'blue' }).addTo(map);
+
+                // Update the tracking URL dynamically
+                updateTrackingUrl(currentLocation.latitude, currentLocation.longitude);
             });
+        }
+
+        // Calculate distance between two lat/long points
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Radius of the Earth in km
+            const dLat = toRad(lat2 - lat1);
+            const dLon = toRad(lon2 - lon1);
+            const a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            const distance = R * c; // Distance in km
+            return distance;
+        }
+
+        // Convert degrees to radians
+        function toRad(degrees) {
+            return degrees * Math.PI / 180;
         }
 
         // Stop tracking
         function stopTracking() {
-            clearInterval(trackingInterval);
-            alert("Tracking stopped. Your journey has been recorded.");
+            if (trackingInterval) {
+                clearInterval(trackingInterval);
+                trackingInterval = null; // Ensure the interval is cleared properly
+                alert("Tracking stopped. Your journey has been recorded.");
+            } else {
+                alert("Tracking is not active.");
+            }
+        }
+
+        // Function to update the tracking URL
+        function updateTrackingUrl(lat, lon) {
+            let liveUrl = `${window.location.origin}?sessionId=${trackingSessionId}&lat=${lat}&lon=${lon}`;
+            document.getElementById("tracking-url").innerText = liveUrl;
         }
 
         // Get area name from coordinates
@@ -108,7 +211,7 @@
                 .then(response => response.json())
                 .then(data => {
                     let areaName = data.display_name || "Unknown Area";
-                    document.getElementById("area-name").innerText = `You started from: ${areaName}`;
+                    document.getElementById("area-name").innerText = `You are currently in: ${areaName}`;
                 })
                 .catch(error => console.error("Error fetching area name:", error));
         }
