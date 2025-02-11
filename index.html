@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live GPS Tracker with OpenStreetMap</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 500px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <h1>Live GPS Tracker with OpenStreetMap</h1>
+    <button onclick="startTracking()">Start Live Tracking</button>
+    <button onclick="stopTracking()">Stop Tracking</button>
+    <button onclick="takePhoto()">Take Photo</button>
+    
+    <div id="location"></div>
+    <div id="area-name"></div>
+    <div id="map"></div>
+    <div>
+        <video id="video" width="300" height="200" autoplay></video>
+        <canvas id="canvas" style="display:none;"></canvas>
+        <img id="photo" width="300" height="200" />
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        let map;
+        let marker, startMarker;
+        let path = [];
+        let polyline;
+        let trackingInterval = null;
+        let currentLocation = null;
+
+        // Initialize the map
+        function initMap() {
+            map = L.map('map').setView([0, 0], 15); // Default location (0,0)
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            marker = L.marker([0, 0]).addTo(map);
+        }
+
+        // Start tracking the location
+        function startTracking() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    let { latitude, longitude } = position.coords;
+                    let startLatLng = [latitude, longitude];
+
+                    // Mark the starting location in GREEN
+                    if (!startMarker) {
+                        startMarker = L.marker(startLatLng, { 
+                            icon: L.icon({ 
+                                iconUrl: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png',
+                                iconSize: [32, 32] 
+                            }) 
+                        }).addTo(map).bindPopup("Starting Point").openPopup();
+                    }
+
+                    // Fetch area name
+                    fetchAreaName(latitude, longitude);
+
+                    // Begin live tracking
+                    trackingInterval = setInterval(updateLocation, 5000);
+                });
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
+        }
+
+        function updateLocation() {
+            navigator.geolocation.getCurrentPosition(position => {
+                currentLocation = position.coords;
+                let latLng = [currentLocation.latitude, currentLocation.longitude];
+
+                document.getElementById("location").innerText = `Latitude: ${currentLocation.latitude}, Longitude: ${currentLocation.longitude}`;
+                
+                marker.setLatLng(latLng);
+                map.setView(latLng, 15);
+                
+                path.push(latLng);
+
+                // Draw a BLUE path
+                if (polyline) {
+                    map.removeLayer(polyline);
+                }
+                polyline = L.polyline(path, { color: 'blue' }).addTo(map);
+            });
+        }
+
+        // Stop tracking
+        function stopTracking() {
+            clearInterval(trackingInterval);
+            alert("Tracking stopped. Your journey has been recorded.");
+        }
+
+        // Get area name from coordinates
+        function fetchAreaName(lat, lon) {
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
+                .then(response => response.json())
+                .then(data => {
+                    let areaName = data.display_name || "Unknown Area";
+                    document.getElementById("area-name").innerText = `You started from: ${areaName}`;
+                })
+                .catch(error => console.error("Error fetching area name:", error));
+        }
+
+        initMap();
+    </script>
+</body>
+</html>
