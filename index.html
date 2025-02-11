@@ -102,6 +102,20 @@
             }).addTo(map);
 
             marker = L.marker([0, 0]).addTo(map);
+
+            // Check if session data exists in the URL (for live tracking)
+            const urlParams = new URLSearchParams(window.location.search);
+            const sessionId = urlParams.get("sessionId");
+            const lat = parseFloat(urlParams.get("lat"));
+            const lon = parseFloat(urlParams.get("lon"));
+
+            if (sessionId && !isNaN(lat) && !isNaN(lon)) {
+                // If sessionId and coordinates are passed, display live location
+                trackingSessionId = sessionId;
+                currentLocation = { latitude: lat, longitude: lon };
+                updateLocation();
+                updateTrackingUrl(lat, lon);
+            }
         }
 
         // Start tracking the location
@@ -198,28 +212,44 @@
                 trackingInterval = null; // Ensure the interval is cleared properly
                 alert("Tracking stopped. Your journey has been recorded.");
             } else {
-                alert("Tracking is not active.");
+                alert("Tracking is not started yet.");
             }
         }
 
-        // Function to update the tracking URL
+        // Update the tracking URL
         function updateTrackingUrl(lat, lon) {
-            let liveUrl = `${window.location.origin}?sessionId=${trackingSessionId}&lat=${lat}&lon=${lon}`;
-            document.getElementById("tracking-url").innerText = liveUrl;
+            let url = `${window.location.origin}?sessionId=${trackingSessionId}&lat=${lat}&lon=${lon}`;
+            document.getElementById("tracking-url").innerText = url;
+            document.getElementById("tracking-url").setAttribute("title", url);
         }
 
-        // Get area name from coordinates
+        // Fetch area name from reverse geocoding API
         function fetchAreaName(lat, lon) {
-            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
+            let url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`;
+            fetch(url)
                 .then(response => response.json())
                 .then(data => {
-                    let areaName = data.display_name || "Unknown Area";
-                    document.getElementById("area-name").innerText = `You are currently in: ${areaName}`;
-                })
-                .catch(error => console.error("Error fetching area name:", error));
+                    document.getElementById("area-name").innerText = `Area: ${data.display_name}`;
+                });
         }
 
+        // Initialize the map when the page is ready
         initMap();
+
+        // Take a photo (placeholder for real functionality)
+        function takePhoto() {
+            console.log("Taking a photo...");
+
+            const videoElement = document.getElementById("video");
+            const canvas = document.getElementById("canvas");
+            const photoElement = document.getElementById("photo");
+
+            const context = canvas.getContext("2d");
+
+            context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            const dataUrl = canvas.toDataURL("image/png");
+            photoElement.src = dataUrl;
+        }
     </script>
 </body>
 </html>
